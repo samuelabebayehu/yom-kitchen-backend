@@ -15,6 +15,10 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	router.Use(middlewares.DatabaseMiddleware(db))
+	//db.AutoMigrate(&models.Client{})
+	//db.AutoMigrate(&models.MenuItem{})
+	//db.AutoMigrate(&models.Order{})
+	//db.AutoMigrate(&models.User{})
 
 	adminGroup := router.Group("/admin")
 	adminGroup.Use(middlewares.AuthenticationMiddleware())

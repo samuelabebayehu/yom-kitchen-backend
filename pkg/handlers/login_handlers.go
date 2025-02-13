@@ -12,7 +12,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func LoginHandler(c *gin.Context) {
+func Login(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
 		c.String(http.StatusInternalServerError, "Database connection not available")

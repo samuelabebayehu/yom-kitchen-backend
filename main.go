@@ -65,7 +65,7 @@ func main() {
 		clientRoutes.POST("/orders", handlers.ClientCreateOrderHandler)
 		clientRoutes.GET("/orders", handlers.ClientGetOrdersHandler)
 	}
-	router.POST("/login", handlers.LoginHandler)
+	router.POST("/login", handlers.Login)
 	err = router.Run(":8080")
 	if err != nil {
 		return

@@ -17,7 +17,8 @@ import (
 func CreateUserAdmin(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database connection not available"})
 		return
 	}
 
@@ -28,24 +29,28 @@ func CreateUserAdmin(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&userRequest); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid request body: " + err.Error()})
 		return
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userRequest.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.String(http.StatusInternalServerError, "Failed to hash password: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to hash password: " + err.Error()})
 		return
 	}
 
 	var existingUser models.User
-	result := db.Where("username = ?", userRequest.Username).First(&existingUser)
+	result := db.Unscoped().Where("username = ?", userRequest.Username).First(&existingUser)
 	if result.Error == nil {
-		c.String(http.StatusConflict, "Username already exists")
+		c.JSON(http.StatusConflict, gin.H{
+			"message": "Username already exists"})
 		return
 	}
 	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		c.String(http.StatusInternalServerError, "Database error checking username: "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database error checking username: " + result.Error.Error()})
 		return
 	}
 
@@ -57,7 +62,8 @@ func CreateUserAdmin(c *gin.Context) {
 
 	createResult := db.Create(&newUser)
 	if createResult.Error != nil {
-		c.String(http.StatusInternalServerError, "Failed to create user: "+createResult.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to create user: " + createResult.Error.Error()})
 		return
 	}
 
@@ -68,13 +74,15 @@ func GetUserAdmin(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid user ID format")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid user ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database connection not available"})
 		return
 	}
 
@@ -82,9 +90,11 @@ func GetUserAdmin(c *gin.Context) {
 	result := db.First(&user, userID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusNotFound, "User not found")
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "User not found"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error fetching user: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Database error fetching user: " + result.Error.Error()})
 		}
 		return
 	}
@@ -109,14 +119,16 @@ func GetUserAdmin(c *gin.Context) {
 func GetAllUsersAdmin(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database connection not available"})
 		return
 	}
 
 	var users []models.User
 	result := db.Find(&users)
 	if result.Error != nil {
-		c.String(http.StatusInternalServerError, "Database error fetching users: "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database error fetching users: " + result.Error.Error()})
 		return
 	}
 
@@ -144,13 +156,15 @@ func UpdateUserAdmin(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid user ID format")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid user ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database connection not available"})
 		return
 	}
 
@@ -158,9 +172,11 @@ func UpdateUserAdmin(c *gin.Context) {
 	result := db.First(&user, userID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusNotFound, "User not found")
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "User not found"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error fetching user: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Database error fetching user: " + result.Error.Error()})
 		}
 		return
 	}
@@ -172,21 +188,27 @@ func UpdateUserAdmin(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&userRequest); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid request body: " + err.Error(),
+		})
 		return
 	}
 
 	updates := make(map[string]interface{})
-
+	// TODO implement username already in use
 	if userRequest.Username != nil {
 		var existingUser models.User
 		usernameCheckResult := db.Where("username = ? AND id != ?", *userRequest.Username, userID).First(&existingUser)
-		if usernameCheckResult.Error == nil {
-			c.String(http.StatusConflict, "Username already exists")
+		if usernameCheckResult.RowsAffected > 0 {
+			c.JSON(http.StatusConflict, gin.H{
+				"message": "Username already exists",
+			})
 			return
 		}
 		if !errors.Is(usernameCheckResult.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusInternalServerError, "Database error checking username: "+usernameCheckResult.Error.Error())
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Database error checking username: " + usernameCheckResult.Error.Error()})
 			return
 		}
 		updates["username"] = *userRequest.Username
@@ -195,7 +217,9 @@ func UpdateUserAdmin(c *gin.Context) {
 	if userRequest.Password != nil {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*userRequest.Password), bcrypt.DefaultCost)
 		if err != nil {
-			c.String(http.StatusInternalServerError, "Failed to hash new password: "+err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Failed to hash new password: " + err.Error()})
+
 			return
 		}
 		updates["password_hash"] = string(hashedPassword)
@@ -208,11 +232,13 @@ func UpdateUserAdmin(c *gin.Context) {
 	if len(updates) > 0 {
 		updateResult := db.Model(&user).Updates(updates)
 		if updateResult.Error != nil {
-			c.String(http.StatusInternalServerError, "Failed to update user: "+updateResult.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Failed to update user: " + updateResult.Error.Error()})
 			return
 		}
 		if updateResult.RowsAffected == 0 {
-			c.String(http.StatusOK, "User updated successfully (no changes applied)")
+			c.JSON(http.StatusOK, gin.H{
+				"message": "User updated successfully (no changes applied)"})
 			return
 		}
 	}
@@ -240,30 +266,35 @@ func DeleteUserAdmin(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid user ID format")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "Invalid user ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Database connection not available"})
 		return
 	}
 
 	var user models.User
-	result := db.First(&user, userID)
+	result := db.Unscoped().First(&user, userID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusNotFound, "User not found")
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "User not found"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error fetching user: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "Database error fetching user: " + result.Error.Error()})
 		}
 		return
 	}
 
-	deleteResult := db.Delete(&user)
+	deleteResult := db.Unscoped().Delete(&user)
 	if deleteResult.Error != nil {
-		c.String(http.StatusInternalServerError, "Failed to delete user: "+deleteResult.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "Failed to delete user: " + deleteResult.Error.Error()})
 		return
 	}
 

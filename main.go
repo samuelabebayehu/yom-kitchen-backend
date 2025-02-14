@@ -1,8 +1,10 @@
 package main
 
 import (
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"log"
+	"time"
 	connection "yom-kitchen/pkg/db"
 	"yom-kitchen/pkg/handlers"
 	"yom-kitchen/pkg/middlewares"
@@ -15,11 +17,22 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	router.Use(middlewares.DatabaseMiddleware(db))
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"PUT", "PATCH", "POST", "GET", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization", "Access-Control-Allow-Origin"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		AllowOriginFunc: func(origin string) bool {
+			return origin == "*"
+		},
+		MaxAge: 12 * time.Hour,
+	}))
+
 	//db.AutoMigrate(&models.Client{})
 	//db.AutoMigrate(&models.MenuItem{})
 	//db.AutoMigrate(&models.Order{})
 	//db.AutoMigrate(&models.User{})
-
 	adminGroup := router.Group("/admin")
 	adminGroup.Use(middlewares.AuthenticationMiddleware())
 	adminGroup.Use(middlewares.AdminAuthorizationMiddleware())

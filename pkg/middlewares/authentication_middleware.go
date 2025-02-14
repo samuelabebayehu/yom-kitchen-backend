@@ -3,7 +3,10 @@ package middlewares
 import (
 	"context"
 	"errors"
+	"github.com/golang-jwt/jwt/v5"
 	"net/http"
+	"os"
+	"strconv"
 	"yom-kitchen/pkg/models"
 
 	"github.com/gin-gonic/gin"
@@ -15,21 +18,55 @@ const UserContextKey = "user"
 
 func AuthenticationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := c.GetHeader("Authorization")
+		tokenString := c.GetHeader("Authorization")
 
-		if token == "" {
+		if tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
 			return
 		}
 
-		parts := strings.Split(token, " ")
+		parts := strings.Split(tokenString, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
 			return
 		}
-		authToken := parts[1]
+		tokenString = parts[1]
 
-		username := authToken
+		secretKey := []byte(os.Getenv("JWT_SECRET_KEY"))
+		if len(secretKey) == 0 {
+			secretKey = []byte("samuelabebayehu")
+			println("WARNING: JWT_SECRET_KEY environment variable not set. Using insecure default key!")
+		}
+
+		token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, errors.New("invalid signing method")
+			}
+			return secretKey, nil
+		})
+
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: " + err.Error()})
+			return
+		}
+
+		claims, ok := token.Claims.(*jwt.RegisteredClaims)
+		if !ok || !token.Valid {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			return
+		}
+
+		userIDString, err := claims.GetSubject()
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user ID from token"})
+			return
+		}
+
+		userID, err := strconv.Atoi(userIDString)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in token"})
+			return
+		}
 
 		db := GetDBFromContext(c)
 		if db == nil {
@@ -38,7 +75,7 @@ func AuthenticationMiddleware() gin.HandlerFunc {
 		}
 
 		var user models.User
-		result := db.Where("username = ?", username).First(&user)
+		result := db.First(&user, userID)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token - User not found"})

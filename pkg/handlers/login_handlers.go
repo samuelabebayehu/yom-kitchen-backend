@@ -2,20 +2,22 @@ package handlers
 
 import (
 	"errors"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"net/http"
-
+	"os"
+	"strconv"
+	"time"
 	"yom-kitchen/pkg/middlewares"
 	"yom-kitchen/pkg/models"
-
-	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func Login(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -25,7 +27,7 @@ func Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&loginRequest); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body: " + err.Error()})
 		return
 	}
 
@@ -33,20 +35,42 @@ func Login(c *gin.Context) {
 	result := db.Where("username = ?", loginRequest.Username).First(&user)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusUnauthorized, "Invalid username or password")
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid username or password"})
+			return
 		} else {
-			c.String(http.StatusInternalServerError, "Database error during login: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error during login: " + result.Error.Error()})
+			return
 		}
-		return
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(loginRequest.Password))
 	if err != nil {
-		c.String(http.StatusUnauthorized, "Invalid username or password")
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid username or password"})
 		return
 	}
 
-	token := loginRequest.Username
+	expirationTime := time.Now().Add(time.Hour * 1)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": token})
+	claims := &jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		Issuer:    "samuelabebayehu",
+		Subject:   strconv.Itoa(int(user.ID)),
+	}
+
+	secretKey := []byte(os.Getenv("JWT_SECRET_KEY"))
+	if len(secretKey) == 0 {
+		secretKey = []byte("samuelabebayehu")
+		println("WARNING: JWT_SECRET_KEY environment variable not set. Using insecure default key!")
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	tokenString, err := token.SignedString(secretKey)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to generate JWT token: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "token": tokenString})
 }

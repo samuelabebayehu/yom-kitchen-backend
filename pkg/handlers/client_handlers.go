@@ -14,13 +14,13 @@ func GetAllClientsAdmin(c *gin.Context) {
 	var clients []models.Client
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
 	result := db.Find(&clients)
 	if result.Error != nil {
-		c.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error: "})
 		return
 	}
 	c.JSON(http.StatusOK, clients)
@@ -29,23 +29,24 @@ func GetAllClientsAdmin(c *gin.Context) {
 func CreateClientAdmin(context *gin.Context) {
 	var newClient models.Client
 	if err := context.ShouldBindJSON(&newClient); err != nil {
-		context.String(http.StatusBadRequest, err.Error())
+		context.JSON(http.StatusBadRequest, gin.H{"message": "error"})
 	}
 	db := middlewares.GetDBFromContext(context)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 	var existingClient models.Client
 	result := db.Where("name = ? AND email = ?", newClient.Name, newClient.Email).First(&existingClient)
-	if result != nil {
-		context.String(http.StatusBadRequest, "Client item already exists")
+	if result.RowsAffected > 0 {
+		print(result.RowsAffected)
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Client item already exists"})
 		return
 	}
 
 	tx := db.Create(&newClient)
 	if tx.Error != nil {
-		context.String(http.StatusInternalServerError, "Database error: "+tx.Error.Error())
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Database error: "})
 	}
 	context.JSON(http.StatusCreated, newClient)
 
@@ -56,40 +57,40 @@ func UpdateClient(context *gin.Context) {
 	db := middlewares.GetDBFromContext(context)
 
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 	if err != nil {
-		context.String(http.StatusBadRequest, err.Error())
+		context.JSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
 	if clientId == 0 {
-		context.String(http.StatusBadRequest, "Client id is required")
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Client id is required"})
 		return
 	}
 	var updatedData models.Client
 	if err := context.ShouldBindJSON(&updatedData); err != nil {
-		context.String(http.StatusBadRequest, err.Error())
+		context.JSON(http.StatusBadRequest, gin.H{"message": "error"})
 	}
 
 	var client models.Client
 	if result := db.First(&client, clientId); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "client not found")
+			context.JSON(http.StatusNotFound, gin.H{"message": "client not found"})
 		} else {
-			context.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
+			context.JSON(http.StatusInternalServerError, gin.H{"message": "Database error: "})
 		}
 		return
 	}
 
 	result := db.Model(&client).Updates(updatedData)
 	if result.Error != nil {
-		context.String(http.StatusInternalServerError, "Failed to update client: "+result.Error.Error())
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update client: "})
 		return
 	}
 
 	if result.RowsAffected == 0 {
-		context.String(http.StatusInternalServerError, "Failed to update client (no rows affected)")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update client (no rows affected)"})
 		return
 	}
 
@@ -104,13 +105,13 @@ func DeleteClientAdmin(context *gin.Context) {
 	clientIdStr := context.Param("id")
 	clientId, err := strconv.Atoi(clientIdStr)
 	if err != nil {
-		context.String(http.StatusBadRequest, "Invalid client ID format")
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Invalid client ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(context)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -118,21 +119,21 @@ func DeleteClientAdmin(context *gin.Context) {
 	result := db.First(&client, clientId)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "Client not found")
+			context.JSON(http.StatusNotFound, gin.H{"message": "Client not found"})
 		} else {
-			context.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
+			context.JSON(http.StatusInternalServerError, gin.H{"message": "Database error: "})
 		}
 		return
 	}
 
 	deleteResult := db.Delete(&client)
 	if deleteResult.Error != nil {
-		context.String(http.StatusInternalServerError, "Failed to delete client: "+deleteResult.Error.Error())
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to delete client: "})
 		return
 	}
 
 	if deleteResult.RowsAffected == 0 {
-		context.String(http.StatusInternalServerError, "Failed to delete client (no rows affected)")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to delete client (no rows affected)"})
 		return
 	}
 
@@ -143,12 +144,12 @@ func UpdateClientStatusAdmin(context *gin.Context) {
 	clientIdStr := context.Param("id")
 	clientId, err := strconv.Atoi(clientIdStr)
 	if err != nil {
-		context.String(http.StatusBadRequest, "Invalid Client ID format: "+err.Error())
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Client ID format: "})
 		return
 	}
 	db := middlewares.GetDBFromContext(context)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -157,7 +158,7 @@ func UpdateClientStatusAdmin(context *gin.Context) {
 	}
 	var clientStatus ClientStatus
 	if err := context.ShouldBindJSON(&clientStatus); err != nil {
-		context.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body: "})
 		return
 	}
 
@@ -165,21 +166,21 @@ func UpdateClientStatusAdmin(context *gin.Context) {
 	result := db.First(&client, clientId)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "Client item not found")
+			context.JSON(http.StatusNotFound, gin.H{"message": "Client item not found"})
 		} else {
-			context.String(http.StatusInternalServerError, "Failed to find client: "+result.Error.Error())
+			context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to find client: "})
 		}
 		return
 	}
 
 	updateResult := db.Model(&client).UpdateColumn("available", clientStatus.IsActive)
 	if updateResult.Error != nil {
-		context.String(http.StatusInternalServerError, "Failed to update client availability: "+updateResult.Error.Error())
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update client availability: "})
 		return
 	}
 
 	if updateResult.RowsAffected == 0 {
-		context.String(http.StatusInternalServerError, "Failed to client item availability (no rows affected)")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to client item availability (no rows affected)"})
 		return
 	}
 
@@ -193,22 +194,22 @@ func GetClientByIdAdmin(context *gin.Context) {
 	clientIdStr := context.Param("id")
 	clientId, err := strconv.Atoi(clientIdStr)
 	if err != nil {
-		context.String(http.StatusBadRequest, "Invalid client ID format: "+err.Error())
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Invalid client ID format: "})
 		return
 	}
 	db := middlewares.GetDBFromContext(context)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 	var client models.Client
 	result := db.First(&client, clientId)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "Client not found")
+			context.JSON(http.StatusNotFound, gin.H{"message": "Client not found"})
 			return
 		}
-		context.String(http.StatusInternalServerError, "Failed to find client: "+result.Error.Error())
+		context.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to find client: "})
 		return
 	}
 	context.JSON(http.StatusOK, client)

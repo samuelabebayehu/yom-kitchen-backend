@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -49,6 +50,7 @@ func CreateMenuAdmin(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Invalid form data: "+err.Error())
 		return
 	}
+	log.Printf("Request Menu item name: %s \n Menu Item price: %s", newMenuItem.Name, newMenuItem.Price)
 
 	// Handle image upload
 	file, err := c.FormFile("image") // "image" should match the frontend form field name for the image

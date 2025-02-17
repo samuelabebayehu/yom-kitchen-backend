@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"log"
 	"net/http"
 	"strconv"
 	"yom-kitchen/pkg/middlewares"
@@ -53,6 +54,7 @@ func CreateClientAdmin(context *gin.Context) {
 }
 
 func UpdateClient(context *gin.Context) {
+
 	clientId, err := strconv.Atoi(context.Param("id"))
 	db := middlewares.GetDBFromContext(context)
 
@@ -72,7 +74,7 @@ func UpdateClient(context *gin.Context) {
 	if err := context.ShouldBindJSON(&updatedData); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"message": "error"})
 	}
-
+	log.Println(updatedData)
 	var client models.Client
 	if result := db.First(&client, clientId); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {

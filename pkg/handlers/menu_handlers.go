@@ -2,13 +2,29 @@ package handlers
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 	"yom-kitchen/pkg/middlewares"
 	"yom-kitchen/pkg/models"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+
+const uploadDirectory = "./uploads"
+
+func init() {
+	if _, err := os.Stat(uploadDirectory); os.IsNotExist(err) {
+		err := os.MkdirAll(uploadDirectory, os.ModeDir|0755)
+		if err != nil {
+			return
+		}
+	}
+}
 
 func GetAllMenusAdmin(c *gin.Context) {
 	var menus []models.MenuItem
@@ -26,91 +42,170 @@ func GetAllMenusAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, menus)
 }
 
-func CreateMenuAdmin(context *gin.Context) {
+func CreateMenuAdmin(c *gin.Context) {
 	var newMenuItem models.MenuItem
-	if err := context.ShouldBindJSON(&newMenuItem); err != nil {
-		context.String(http.StatusBadRequest, err.Error())
-	}
-	db := middlewares.GetDBFromContext(context)
-	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+	// Bind form data to MenuItem struct, including text fields
+	if err := c.ShouldBind(&newMenuItem); err != nil { // Use Bind to handle form and JSON
+		c.String(http.StatusBadRequest, "Invalid form data: "+err.Error())
 		return
 	}
+
+	// Handle image upload
+	file, err := c.FormFile("image") // "image" should match the frontend form field name for the image
+	if err == nil && file != nil {   // No error means a file was uploaded
+		// Validate file type (optional, but recommended)
+		allowedTypes := []string{"image/jpeg", "image/png", "image/gif"}
+		fileContentType := file.Header.Get("Content-Type")
+		isValidType := false
+		for _, allowedType := range allowedTypes {
+			if fileContentType == allowedType {
+				isValidType = true
+				break
+			}
+		}
+		if !isValidType {
+			c.String(http.StatusBadRequest, "Invalid file type. Allowed types: jpeg, png, gif")
+			return
+		}
+
+		// Generate unique filename
+		timestamp := time.Now().UnixNano()
+		filename := fmt.Sprintf("%d-%s", timestamp, file.Filename)
+		filePath := filepath.Join(uploadDirectory, filename)
+
+		// Save file to disk
+		if err := c.SaveUploadedFile(file, filePath); err != nil {
+			c.String(http.StatusInternalServerError, "Failed to save image: "+err.Error())
+			return
+		}
+
+		// Set ImageURL in MenuItem model
+		newMenuItem.ImageUrl = "/uploads/" + filename // Store relative URL in DB
+	} else if !errors.Is(err, http.ErrMissingFile) {
+		c.String(http.StatusInternalServerError, "File upload error: "+err.Error())
+		return
+	} // If http.ErrMissingFile, it means no image was uploaded, which is okay if image is optional
+
+	db := middlewares.GetDBFromContext(c)
+	if db == nil {
+		c.String(http.StatusInternalServerError, "Database connection not available")
+		return
+	}
+
 	var existingMenuItem models.MenuItem
 	result := db.Where("name = ? AND category = ?", newMenuItem.Name, newMenuItem.Category).First(&existingMenuItem)
-	if result != nil {
-		context.String(http.StatusBadRequest, "Menu item already exists")
+	if result.Error == nil { // If no error, it means item exists
+		c.String(http.StatusBadRequest, "Menu item already exists")
 		return
 	}
 
 	tx := db.Create(&newMenuItem)
 	if tx.Error != nil {
-		context.String(http.StatusInternalServerError, "Database error: "+tx.Error.Error())
+		c.String(http.StatusInternalServerError, "Database error: "+tx.Error.Error())
+		return
 	}
-	context.JSON(http.StatusCreated, newMenuItem)
-
+	c.JSON(http.StatusCreated, newMenuItem)
 }
 
-func UpdateMenuAdmin(context *gin.Context) {
-	menuId, err := strconv.Atoi(context.Param("id"))
-	db := middlewares.GetDBFromContext(context)
+func UpdateMenuAdmin(c *gin.Context) {
+	menuId, err := strconv.Atoi(c.Param("id"))
+	db := middlewares.GetDBFromContext(c)
 
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		c.String(http.StatusInternalServerError, "Database connection not available")
 		return
 	}
 	if err != nil {
-		context.String(http.StatusBadRequest, err.Error())
+		c.String(http.StatusBadRequest, err.Error())
 		return
 	}
 	if menuId == 0 {
-		context.String(http.StatusBadRequest, "Menu id is required")
+		c.String(http.StatusBadRequest, "Menu id is required")
 		return
 	}
+
 	var updatedData models.MenuItem
-	if err := context.ShouldBindJSON(&updatedData); err != nil {
-		context.String(http.StatusBadRequest, err.Error())
+	// Bind form data to MenuItem struct, including text fields
+	if err := c.ShouldBind(&updatedData); err != nil { // Use Bind to handle form and JSON
+		c.String(http.StatusBadRequest, "Invalid form data: "+err.Error())
+		return
 	}
+
+	// Handle image upload (similar to CreateMenuAdmin)
+	file, err := c.FormFile("image") // "image" should match the frontend form field name
+	if err == nil && file != nil {   // No error means a new file was uploaded
+		// Validate file type (optional, but recommended)
+		allowedTypes := []string{"image/jpeg", "image/png", "image/gif"}
+		fileContentType := file.Header.Get("Content-Type")
+		isValidType := false
+		for _, allowedType := range allowedTypes {
+			if fileContentType == allowedType {
+				isValidType = true
+				break
+			}
+		}
+		if !isValidType {
+			c.String(http.StatusBadRequest, "Invalid file type. Allowed types: jpeg, png, gif")
+			return
+		}
+
+		// Generate unique filename
+		timestamp := time.Now().UnixNano()
+		filename := fmt.Sprintf("%d-%s", timestamp, file.Filename)
+		filePath := filepath.Join(uploadDirectory, filename)
+
+		// Save file to disk
+		if err := c.SaveUploadedFile(file, filePath); err != nil {
+			c.String(http.StatusInternalServerError, "Failed to save image: "+err.Error())
+			return
+		}
+
+		// Set ImageURL in MenuItem model
+		updatedData.ImageUrl = "/uploads/" + filename // Update ImageURL
+	} else if !errors.Is(err, http.ErrMissingFile) {
+		c.String(http.StatusInternalServerError, "File upload error: "+err.Error())
+		return
+	} // If http.ErrMissingFile, it means no new image was uploaded, which is okay for update
 
 	var menu models.MenuItem
 	if result := db.First(&menu, menuId); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "menu not found")
+			c.String(http.StatusNotFound, "menu not found")
 		} else {
-			context.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
+			c.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
 		}
 		return
 	}
 
+	// Update only the fields that are provided in updatedData, including ImageURL if a new image was uploaded
 	result := db.Model(&menu).Updates(updatedData)
 	if result.Error != nil {
-		context.String(http.StatusInternalServerError, "Failed to update menu: "+result.Error.Error())
+		c.String(http.StatusInternalServerError, "Failed to update menu: "+result.Error.Error())
 		return
 	}
 
 	if result.RowsAffected == 0 {
-		context.String(http.StatusInternalServerError, "Failed to update menu (no rows affected)")
+		c.String(http.StatusInternalServerError, "Failed to update menu (no rows affected)")
 		return
 	}
 
 	var updatedMenu models.MenuItem
 	db.First(&updatedMenu, menuId)
 
-	context.JSON(http.StatusOK, gin.H{"message": "Menu updated successfully", "menu": updatedMenu})
-
+	c.JSON(http.StatusOK, gin.H{"message": "Menu updated successfully", "menu": updatedMenu})
 }
 
-func DeleteMenuAdmin(context *gin.Context) {
-	menuIdStr := context.Param("id")
+func DeleteMenuAdmin(c *gin.Context) {
+	menuIdStr := c.Param("id")
 	menuId, err := strconv.Atoi(menuIdStr)
 	if err != nil {
-		context.String(http.StatusBadRequest, "Invalid menu ID format")
+		c.String(http.StatusBadRequest, "Invalid menu ID format")
 		return
 	}
 
-	db := middlewares.GetDBFromContext(context)
+	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		c.String(http.StatusInternalServerError, "Database connection not available")
 		return
 	}
 
@@ -118,37 +213,50 @@ func DeleteMenuAdmin(context *gin.Context) {
 	result := db.First(&menu, menuId)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "Menu not found")
+			c.String(http.StatusNotFound, "Menu not found")
 		} else {
-			context.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
+			c.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
 		}
 		return
 	}
 
+	// Delete associated image file (optional, but recommended for cleanup if storing locally)
+	if menu.ImageUrl != "" {
+		imagePath := filepath.Join(".", menu.ImageUrl) // Assuming ImageURL is relative to root
+		err := os.Remove(imagePath)
+		if err != nil {
+			return
+		} // Remove the image file from disk
+		// Handle error if deletion fails, maybe log it but don't block menu deletion
+		if err := os.Remove(imagePath); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Error deleting image file: %s, error: %v\n", imagePath, err) // Log error, but continue menu deletion
+		}
+	}
+
 	deleteResult := db.Delete(&menu)
 	if deleteResult.Error != nil {
-		context.String(http.StatusInternalServerError, "Failed to delete menu: "+deleteResult.Error.Error())
+		c.String(http.StatusInternalServerError, "Failed to delete menu: "+deleteResult.Error.Error())
 		return
 	}
 
 	if deleteResult.RowsAffected == 0 {
-		context.String(http.StatusInternalServerError, "Failed to delete menu (no rows affected)")
+		c.String(http.StatusInternalServerError, "Failed to delete menu (no rows affected)")
 		return
 	}
 
-	context.JSON(http.StatusOK, gin.H{"message": "Menu deleted successfully", "menu_id": menuId})
+	c.JSON(http.StatusOK, gin.H{"message": "Menu deleted successfully", "menu_id": menuId})
 }
 
-func UpdateMenuItemAvailabilityAdmin(context *gin.Context) {
-	menuIdStr := context.Param("id")
+func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
+	menuIdStr := c.Param("id")
 	menuId, err := strconv.Atoi(menuIdStr)
 	if err != nil {
-		context.String(http.StatusBadRequest, "Invalid menu item ID format: "+err.Error())
+		c.String(http.StatusBadRequest, "Invalid menu item ID format: "+err.Error())
 		return
 	}
-	db := middlewares.GetDBFromContext(context)
+	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		c.String(http.StatusInternalServerError, "Database connection not available")
 		return
 	}
 
@@ -156,8 +264,8 @@ func UpdateMenuItemAvailabilityAdmin(context *gin.Context) {
 		IsAvailable bool `json:"available" binding:"required"`
 	}
 	var menuStatus MenuStatus
-	if err := context.ShouldBindJSON(&menuStatus); err != nil {
-		context.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+	if err := c.ShouldBindJSON(&menuStatus); err != nil {
+		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
 		return
 	}
 
@@ -165,51 +273,51 @@ func UpdateMenuItemAvailabilityAdmin(context *gin.Context) {
 	result := db.First(&menuItem, menuId)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "Menu item not found")
-		} else {
-			context.String(http.StatusInternalServerError, "Failed to find menu item: "+result.Error.Error())
+			c.String(http.StatusNotFound, "Menu item not found")
+			return
 		}
+		c.String(http.StatusInternalServerError, "Failed to find menu item: "+result.Error.Error())
 		return
 	}
 
 	updateResult := db.Model(&menuItem).UpdateColumn("available", menuStatus.IsAvailable)
 	if updateResult.Error != nil {
-		context.String(http.StatusInternalServerError, "Failed to update menu item availability: "+updateResult.Error.Error())
+		c.String(http.StatusInternalServerError, "Failed to update menu item availability: "+updateResult.Error.Error())
 		return
 	}
 
 	if updateResult.RowsAffected == 0 {
-		context.String(http.StatusInternalServerError, "Failed to update menu item availability (no rows affected)")
+		c.String(http.StatusInternalServerError, "Failed to update menu item availability (no rows affected)")
 		return
 	}
 
 	var updatedMenuItem models.MenuItem
 	db.First(&updatedMenuItem, menuId)
 
-	context.JSON(http.StatusOK, gin.H{"message": "Menu item availability updated successfully", "menu_item": updatedMenuItem})
+	c.JSON(http.StatusOK, gin.H{"message": "Menu item availability updated successfully", "menu_item": updatedMenuItem})
 }
 
-func GetMenuByIdAdmin(context *gin.Context) {
-	menuIdStr := context.Param("id")
+func GetMenuByIdAdmin(c *gin.Context) {
+	menuIdStr := c.Param("id")
 	menuId, err := strconv.Atoi(menuIdStr)
 	if err != nil {
-		context.String(http.StatusBadRequest, "Invalid menu ID format: "+err.Error())
+		c.String(http.StatusBadRequest, "Invalid menu ID format: "+err.Error())
 		return
 	}
-	db := middlewares.GetDBFromContext(context)
+	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		context.String(http.StatusInternalServerError, "Database connection not available")
+		c.String(http.StatusInternalServerError, "Database connection not available")
 		return
 	}
 	var menuItem models.MenuItem
 	result := db.First(&menuItem, menuId)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			context.String(http.StatusNotFound, "Menu item not found")
+			c.String(http.StatusNotFound, "Menu item not found")
 			return
 		}
-		context.String(http.StatusInternalServerError, "Failed to find menu item: "+result.Error.Error())
+		c.String(http.StatusInternalServerError, "Failed to find menu item: "+result.Error.Error())
 		return
 	}
-	context.JSON(http.StatusOK, menuItem)
+	c.JSON(http.StatusOK, menuItem)
 }

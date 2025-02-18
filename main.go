@@ -10,6 +10,8 @@ import (
 	"yom-kitchen/pkg/middlewares"
 )
 
+const uploadDirectory = "./uploads"
+
 func main() {
 	router := gin.Default()
 	db, err := connection.InitializeDB()
@@ -33,6 +35,7 @@ func main() {
 	//db.AutoMigrate(&models.MenuItem{})
 	//db.AutoMigrate(&models.Order{})
 	//db.AutoMigrate(&models.User{})
+	router.Static("/uploads", uploadDirectory)
 	adminGroup := router.Group("/admin")
 	adminGroup.Use(middlewares.AuthenticationMiddleware())
 	adminGroup.Use(middlewares.AdminAuthorizationMiddleware())

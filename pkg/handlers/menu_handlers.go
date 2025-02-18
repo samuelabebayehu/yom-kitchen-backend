@@ -45,18 +45,21 @@ func GetAllMenusAdmin(c *gin.Context) {
 
 func CreateMenuAdmin(c *gin.Context) {
 	var newMenuItem models.MenuItem
-	// Bind form data to MenuItem struct, including text fields
-	if err := c.ShouldBind(&newMenuItem); err != nil { // Use Bind to handle form and JSON
-		c.String(http.StatusBadRequest, "Invalid form data: "+err.Error())
+
+	err := c.Request.ParseMultipartForm(32 << 20)
+	if err != nil {
+		c.String(http.StatusBadRequest, "Parse Multipart Form Error: "+err.Error())
 		return
 	}
-	log.Printf("Request Menu item name: %s \n Menu Item price: %s", newMenuItem.Name, newMenuItem.Price)
-
-	// Handle image upload
-	file, err := c.FormFile("image") // "image" should match the frontend form field name for the image
-	if err == nil && file != nil {   // No error means a file was uploaded
-		// Validate file type (optional, but recommended)
-		allowedTypes := []string{"image/jpeg", "image/png", "image/gif"}
+	log.Printf("test print")
+	if bindErr := c.ShouldBind(&newMenuItem); bindErr != nil {
+		c.String(http.StatusBadRequest, "Bind Error: "+bindErr.Error())
+		return
+	}
+	log.Printf("Request Menu item name: %s, Menu Item price: %f", newMenuItem.Name, newMenuItem.Price)
+	file, err := c.FormFile("image")
+	if err == nil && file != nil {
+		allowedTypes := []string{"image/jpeg", "image/jpg", "image/png", "image/gif"}
 		fileContentType := file.Header.Get("Content-Type")
 		isValidType := false
 		for _, allowedType := range allowedTypes {
@@ -70,23 +73,20 @@ func CreateMenuAdmin(c *gin.Context) {
 			return
 		}
 
-		// Generate unique filename
 		timestamp := time.Now().UnixNano()
 		filename := fmt.Sprintf("%d-%s", timestamp, file.Filename)
 		filePath := filepath.Join(uploadDirectory, filename)
 
-		// Save file to disk
 		if err := c.SaveUploadedFile(file, filePath); err != nil {
 			c.String(http.StatusInternalServerError, "Failed to save image: "+err.Error())
 			return
 		}
 
-		// Set ImageURL in MenuItem model
-		newMenuItem.ImageUrl = "/uploads/" + filename // Store relative URL in DB
+		newMenuItem.ImageUrl = "/uploads/" + filename
 	} else if !errors.Is(err, http.ErrMissingFile) {
 		c.String(http.StatusInternalServerError, "File upload error: "+err.Error())
 		return
-	} // If http.ErrMissingFile, it means no image was uploaded, which is okay if image is optional
+	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
@@ -96,7 +96,7 @@ func CreateMenuAdmin(c *gin.Context) {
 
 	var existingMenuItem models.MenuItem
 	result := db.Where("name = ? AND category = ?", newMenuItem.Name, newMenuItem.Category).First(&existingMenuItem)
-	if result.Error == nil { // If no error, it means item exists
+	if result.Error == nil {
 		c.String(http.StatusBadRequest, "Menu item already exists")
 		return
 	}
@@ -263,7 +263,7 @@ func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
 	}
 
 	type MenuStatus struct {
-		IsAvailable bool `json:"available" binding:"required"`
+		available bool `json:"available" binding:"required"`
 	}
 	var menuStatus MenuStatus
 	if err := c.ShouldBindJSON(&menuStatus); err != nil {
@@ -282,7 +282,7 @@ func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
 		return
 	}
 
-	updateResult := db.Model(&menuItem).UpdateColumn("available", menuStatus.IsAvailable)
+	updateResult := db.Model(&menuItem).UpdateColumn("available", menuStatus.available)
 	if updateResult.Error != nil {
 		c.String(http.StatusInternalServerError, "Failed to update menu item availability: "+updateResult.Error.Error())
 		return

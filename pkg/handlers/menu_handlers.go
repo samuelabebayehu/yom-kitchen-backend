@@ -56,7 +56,6 @@ func CreateMenuAdmin(c *gin.Context) {
 		c.String(http.StatusBadRequest, "Bind Error: "+bindErr.Error())
 		return
 	}
-	log.Printf("Request Menu item name: %s, Menu Item price: %f", newMenuItem.Name, newMenuItem.Price)
 	file, err := c.FormFile("image")
 	if err == nil && file != nil {
 		allowedTypes := []string{"image/jpeg", "image/jpg", "image/png", "image/gif"}
@@ -263,7 +262,7 @@ func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
 	}
 
 	type MenuStatus struct {
-		available bool `json:"available" binding:"required"`
+		Available bool `json:"available" binding:"required"`
 	}
 	var menuStatus MenuStatus
 	if err := c.ShouldBindJSON(&menuStatus); err != nil {
@@ -282,7 +281,7 @@ func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
 		return
 	}
 
-	updateResult := db.Model(&menuItem).UpdateColumn("available", menuStatus.available)
+	updateResult := db.Model(&menuItem).UpdateColumn("available", menuStatus.Available)
 	if updateResult.Error != nil {
 		c.String(http.StatusInternalServerError, "Failed to update menu item availability: "+updateResult.Error.Error())
 		return
@@ -322,4 +321,20 @@ func GetMenuByIdAdmin(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, menuItem)
+}
+
+func GetActiveMenus(c *gin.Context) {
+	var menus []models.MenuItem
+	db := middlewares.GetDBFromContext(c)
+	if db == nil {
+		c.String(http.StatusInternalServerError, "Database connection not available")
+		return
+	}
+
+	result := db.Find(&menus).Where("available=true")
+	if result.Error != nil {
+		c.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
+		return
+	}
+	c.JSON(http.StatusOK, menus)
 }

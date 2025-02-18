@@ -34,7 +34,7 @@ func CreateOrderAdmin(c *gin.Context) {
 		return
 	}
 
-	var orderItemsForDB []models.OrderItem //
+	var orderItemsForDB []models.OrderItem
 	totalAmount := 0.0
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
@@ -110,7 +110,7 @@ func GetOrderAdmin(c *gin.Context) {
 	}
 
 	var order models.Order
-	result := db.Preload("Client").Preload("OrderItems").First(&order, orderID) // Preload related data
+	result := db.Preload("Client").Preload("OrderItems").First(&order, orderID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			c.String(http.StatusNotFound, "Order not found")
@@ -258,7 +258,7 @@ func ClientCreateOrderHandler(c *gin.Context) {
 
 	var orderRequest struct {
 		ClientID       int    `json:"client_id" binding:"required"`
-		ClientPassword string `json:"passcode" binding:"required"` // Client Password in request
+		ClientPassword string `json:"passcode" binding:"required"`
 		OrderItems     []struct {
 			MenuItemID int `json:"menu_item_id" binding:"required"`
 			Quantity   int `json:"quantity" binding:"required,min=1"`
@@ -290,11 +290,6 @@ func ClientCreateOrderHandler(c *gin.Context) {
 	totalAmount := 0.0
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
-		var client models.Client
-		if err := tx.First(&client, orderRequest.ClientID).Error; err != nil {
-			return err
-		}
-
 		for _, itemRequest := range orderRequest.OrderItems {
 			var menuItem models.MenuItem
 			if err := tx.First(&menuItem, itemRequest.MenuItemID).Error; err != nil {
@@ -369,7 +364,7 @@ func ClientGetOrdersHandler(c *gin.Context) {
 		return
 	}
 
-	if client.Passcode != clientPassword { // Simple password check
+	if client.Passcode != clientPassword {
 		c.String(http.StatusUnauthorized, "Invalid Client Password")
 		return
 	}

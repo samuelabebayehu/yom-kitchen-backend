@@ -38,10 +38,10 @@ func CreateClientAdmin(context *gin.Context) {
 		return
 	}
 	var existingClient models.Client
-	result := db.Where("name = ? AND email = ?", newClient.Name, newClient.Email).First(&existingClient)
+	result := db.Where("name = ? OR email = ?", newClient.Name, newClient.Email).First(&existingClient)
 	if result.RowsAffected > 0 {
 		print(result.RowsAffected)
-		context.JSON(http.StatusBadRequest, gin.H{"message": "Client item already exists"})
+		context.JSON(http.StatusBadRequest, gin.H{"message": "Client or email already exists"})
 		return
 	}
 

@@ -261,15 +261,6 @@ func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
 		return
 	}
 
-	type MenuStatus struct {
-		Available bool `json:"available" binding:"required"`
-	}
-	var menuStatus MenuStatus
-	if err := c.ShouldBindJSON(&menuStatus); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
-		return
-	}
-
 	var menuItem models.MenuItem
 	result := db.First(&menuItem, menuId)
 	if result.Error != nil {
@@ -281,7 +272,7 @@ func UpdateMenuItemAvailabilityAdmin(c *gin.Context) {
 		return
 	}
 
-	updateResult := db.Model(&menuItem).UpdateColumn("available", menuStatus.Available)
+	updateResult := db.Model(&menuItem).UpdateColumn("available", !menuItem.Available)
 	if updateResult.Error != nil {
 		c.String(http.StatusInternalServerError, "Failed to update menu item availability: "+updateResult.Error.Error())
 		return

@@ -1,15 +1,13 @@
 package main
 
 import (
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"log"
 	"time"
 	connection "yom-kitchen/pkg/db"
 	"yom-kitchen/pkg/handlers"
 	"yom-kitchen/pkg/middlewares"
-	"yom-kitchen/pkg/models"
-
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 )
 
 const uploadDirectory = "./uploads"
@@ -33,10 +31,6 @@ func main() {
 		MaxAge: 12 * time.Hour,
 	}))
 
-	db.AutoMigrate(&models.Client{})
-	db.AutoMigrate(&models.MenuItem{})
-	db.AutoMigrate(&models.Order{})
-	db.AutoMigrate(&models.User{})
 	router.Static("/uploads", uploadDirectory)
 	adminGroup := router.Group("/admin")
 	adminGroup.Use(middlewares.AuthenticationMiddleware())

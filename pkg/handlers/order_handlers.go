@@ -208,7 +208,7 @@ func UpdateOrderStatusAdmin(c *gin.Context) {
 		return
 	}
 
-	allowedStatuses := []string{"Pending", "Processing", "Shipped", "Delivered", "Cancelled"}
+	allowedStatuses := []string{"Pending", "Accepted", "Cancelled", "Ready", "Delivered"}
 	isValidStatus := false
 	for _, status := range allowedStatuses {
 		if updateRequest.Status == status {

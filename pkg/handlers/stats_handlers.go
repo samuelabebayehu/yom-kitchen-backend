@@ -35,7 +35,7 @@ func GetStatsAdmin(c *gin.Context) {
 	today := time.Now().Format("2006-01-02")
 	resultRevenue := db.Model(&models.Order{}).
 		Where("DATE(created_at) = ?", today).
-		Select("COALESCE(SUM(total_price), 0)").
+		Select("COALESCE(SUM(total_amount), 0)").
 		Scan(&todayRevenue)
 	if resultRevenue.Error != nil {
 		todayRevenue = 0

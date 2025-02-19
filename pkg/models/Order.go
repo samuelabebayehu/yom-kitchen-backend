@@ -12,8 +12,8 @@ type Order struct {
 	Client      Client      `json:"client" gorm:"foreignKey:ClientID;references:ID"`
 	OrderDate   time.Time   `json:"order_date" gorm:"not null;default:now()"`
 	OrderItems  []OrderItem `json:"order_items" gorm:"foreignKey:OrderID;references:ID;constraint:OnDelete:CASCADE"`
-	TotalAmount float64     `json:"total_amount" gorm:"not null;type:decimal(10,2);"`
-	Status      string      `json:"status" gorm:"default:'Pending'"`
+	TotalAmount float64     `json:"total_amount" gorm:"not null;type:decimal(10,2)"`
+	Status      string      `json:"status" gorm:"default:'Pending';type:enum('Pending','Accepted','Cancelled','Ready','Delivered')"`
 	Notes       string      `json:"notes,omitempty"`
 }
 

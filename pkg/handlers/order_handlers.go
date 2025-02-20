@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -257,7 +258,6 @@ func ClientCreateOrderHandler(c *gin.Context) {
 	}
 
 	var orderRequest struct {
-		ClientID       int    `json:"client_id" binding:"required"`
 		ClientPassword string `json:"passcode" binding:"required"`
 		OrderItems     []struct {
 			MenuItemID int `json:"menu_item_id" binding:"required"`
@@ -272,9 +272,9 @@ func ClientCreateOrderHandler(c *gin.Context) {
 	}
 
 	var client models.Client
-	if err := db.First(&client, orderRequest.ClientID).Error; err != nil {
+	if err := db.Where("passcode=?", orderRequest.ClientPassword).First(&client).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.String(http.StatusBadRequest, "Invalid Client ID")
+			c.String(http.StatusBadRequest, "Invalid Request")
 		} else {
 			c.String(http.StatusInternalServerError, "Database error checking Client: "+err.Error())
 		}
@@ -288,7 +288,7 @@ func ClientCreateOrderHandler(c *gin.Context) {
 
 	var orderItemsForDB []models.OrderItem
 	totalAmount := 0.0
-
+	var resolvedClientId = client.ID
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		for _, itemRequest := range orderRequest.OrderItems {
 			var menuItem models.MenuItem
@@ -314,7 +314,7 @@ func ClientCreateOrderHandler(c *gin.Context) {
 		}
 
 		order := models.Order{
-			ClientID:    orderRequest.ClientID,
+			ClientID:    int(resolvedClientId),
 			OrderDate:   time.Now(),
 			OrderItems:  orderItemsForDB,
 			TotalAmount: totalAmount,
@@ -334,14 +334,7 @@ func ClientCreateOrderHandler(c *gin.Context) {
 }
 
 func ClientGetOrdersHandler(c *gin.Context) {
-	clientIDStr := c.Query("client_id")
 	clientPassword := c.Query("client_password")
-
-	clientID, err := strconv.Atoi(clientIDStr)
-	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid Client ID format")
-		return
-	}
 
 	if clientPassword == "" {
 		c.String(http.StatusBadRequest, "Client Password is required")
@@ -355,9 +348,9 @@ func ClientGetOrdersHandler(c *gin.Context) {
 	}
 
 	var client models.Client
-	if err := db.First(&client, clientID).Error; err != nil {
+	if err := db.Where("passcode=?", clientPassword).First(&client).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.String(http.StatusBadRequest, "Invalid Client ID")
+			c.String(http.StatusBadRequest, "Invalid Request")
 		} else {
 			c.String(http.StatusInternalServerError, "Database error checking Client: "+err.Error())
 		}
@@ -368,9 +361,9 @@ func ClientGetOrdersHandler(c *gin.Context) {
 		c.String(http.StatusUnauthorized, "Invalid Client Password")
 		return
 	}
-
+	log.Printf("fetching orders for client ID: %d", client.ID)
 	var orders []models.Order
-	result := db.Preload("OrderItems").Where("client_id = ?", clientID).Find(&orders)
+	result := db.Where("client_id = ?", client.ID).Find(&orders)
 	if result.Error != nil {
 		c.String(http.StatusInternalServerError, "Database error fetching orders: "+result.Error.Error())
 		return

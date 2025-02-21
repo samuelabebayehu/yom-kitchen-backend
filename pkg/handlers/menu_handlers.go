@@ -322,7 +322,7 @@ func GetActiveMenus(c *gin.Context) {
 		return
 	}
 
-	result := db.Find(&menus).Where("available=true")
+	result := db.Where("available=true").Find(&menus)
 	if result.Error != nil {
 		c.String(http.StatusInternalServerError, "Database error: "+result.Error.Error())
 		return

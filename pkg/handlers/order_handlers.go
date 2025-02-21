@@ -239,17 +239,6 @@ func UpdateOrderStatusAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Order status updated successfully", "order": updatedOrder})
 }
 
-func stringSliceToString(slice []string) string {
-	result := ""
-	for i, s := range slice {
-		result += s
-		if i < len(slice)-1 {
-			result += ", "
-		}
-	}
-	return result
-}
-
 func ClientCreateOrderHandler(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {

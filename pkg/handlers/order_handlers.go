@@ -17,7 +17,7 @@ import (
 func CreateOrderAdmin(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -31,7 +31,7 @@ func CreateOrderAdmin(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&orderRequest); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body: "})
 		return
 	}
 
@@ -42,9 +42,9 @@ func CreateOrderAdmin(c *gin.Context) {
 		var client models.Client
 		if err := tx.First(&client, orderRequest.ClientID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.String(http.StatusBadRequest, "Invalid Client ID")
+				c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Client ID"})
 			} else {
-				c.String(http.StatusInternalServerError, "Database error checking Client: "+err.Error())
+				c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error checking Client: "})
 			}
 			return err
 		}
@@ -53,15 +53,15 @@ func CreateOrderAdmin(c *gin.Context) {
 			var menuItem models.MenuItem
 			if err := tx.First(&menuItem, itemRequest.MenuItemID).Error; err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
-					c.String(http.StatusBadRequest, "Invalid MenuItem ID: "+strconv.Itoa(itemRequest.MenuItemID))
+					c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid MenuItem ID: "})
 				} else {
-					c.String(http.StatusInternalServerError, "Database error checking MenuItem: "+err.Error())
+					c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error checking MenuItem: "})
 				}
 				return err
 			}
 
 			if !menuItem.Available {
-				c.String(http.StatusBadRequest, "MenuItem not available: "+menuItem.Name)
+				c.JSON(http.StatusBadRequest, gin.H{"message": "MenuItem not available: "})
 				return nil
 			}
 
@@ -85,7 +85,7 @@ func CreateOrderAdmin(c *gin.Context) {
 			Notes:       orderRequest.Notes,
 		}
 		if createResult := tx.Create(&order); createResult.Error != nil {
-			c.String(http.StatusInternalServerError, "Failed to create order: "+createResult.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create order: "})
 			return createResult.Error
 		}
 		return nil
@@ -100,13 +100,13 @@ func GetOrderAdmin(c *gin.Context) {
 	orderIDStr := c.Param("id")
 	orderID, err := strconv.Atoi(orderIDStr)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid order ID format")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid order ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -114,9 +114,9 @@ func GetOrderAdmin(c *gin.Context) {
 	result := db.Preload("Client").Preload("OrderItems").First(&order, orderID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusNotFound, "Order not found")
+			c.JSON(http.StatusNotFound, gin.H{"message": "Order not found"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error fetching order: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error fetching order: "})
 		}
 		return
 	}
@@ -127,14 +127,14 @@ func GetOrderAdmin(c *gin.Context) {
 func GetAllOrdersAdmin(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
 	var orders []models.Order
 	result := db.Preload("Client").Preload("OrderItems").Find(&orders)
 	if result.Error != nil {
-		c.String(http.StatusInternalServerError, "Database error fetching orders: "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error fetching orders: "})
 		return
 	}
 
@@ -145,13 +145,13 @@ func DeleteOrderAdmin(c *gin.Context) {
 	orderIDStr := c.Param("id")
 	orderID, err := strconv.Atoi(orderIDStr)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid order ID format")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid order ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -159,16 +159,16 @@ func DeleteOrderAdmin(c *gin.Context) {
 	result := db.First(&order, orderID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusNotFound, "Order not found")
+			c.JSON(http.StatusNotFound, gin.H{"message": "Order not found"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error checking order: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error checking order: "})
 		}
 		return
 	}
 
 	deleteResult := db.Delete(&order)
 	if deleteResult.Error != nil {
-		c.String(http.StatusInternalServerError, "Failed to delete order: "+deleteResult.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to delete order: "})
 		return
 	}
 
@@ -179,13 +179,13 @@ func UpdateOrderStatusAdmin(c *gin.Context) {
 	orderIDStr := c.Param("id")
 	orderID, err := strconv.Atoi(orderIDStr)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid order ID format")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid order ID format"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -193,9 +193,9 @@ func UpdateOrderStatusAdmin(c *gin.Context) {
 	result := db.First(&order, orderID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			c.String(http.StatusNotFound, "Order not found")
+			c.JSON(http.StatusNotFound, gin.H{"message": "Order not found"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error fetching order: "+result.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error fetching order: "})
 		}
 		return
 	}
@@ -205,7 +205,7 @@ func UpdateOrderStatusAdmin(c *gin.Context) {
 	}
 	var updateRequest OrderStatusUpdateRequest
 	if err := c.ShouldBindJSON(&updateRequest); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body: "})
 		return
 	}
 
@@ -218,18 +218,18 @@ func UpdateOrderStatusAdmin(c *gin.Context) {
 		}
 	}
 	if !isValidStatus {
-		c.String(http.StatusBadRequest, "Invalid order status. Allowed statuses: "+stringSliceToString(allowedStatuses))
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid order status. Allowed statuses: "})
 		return
 	}
 
 	result = db.Model(&order).UpdateColumn("status", updateRequest.Status)
 	if result.Error != nil {
-		c.String(http.StatusInternalServerError, "Failed to update order status: "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update order status: "})
 		return
 	}
 
 	if result.RowsAffected == 0 {
-		c.String(http.StatusInternalServerError, "Failed to update order status (no rows affected)")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update order status (no rows affected)"})
 		return
 	}
 
@@ -253,7 +253,7 @@ func stringSliceToString(slice []string) string {
 func ClientCreateOrderHandler(c *gin.Context) {
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
@@ -267,22 +267,22 @@ func ClientCreateOrderHandler(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&orderRequest); err != nil {
-		c.String(http.StatusBadRequest, "Invalid request body: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request body: "})
 		return
 	}
 
 	var client models.Client
 	if err := db.Where("passcode=?", orderRequest.ClientPassword).First(&client).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.String(http.StatusBadRequest, "Invalid Request")
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Request"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error checking Client: "+err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error checking Client: "})
 		}
 		return
 	}
 
 	if client.Passcode != orderRequest.ClientPassword {
-		c.String(http.StatusUnauthorized, "Invalid Client Password")
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid Client Password"})
 		return
 	}
 
@@ -293,12 +293,12 @@ func ClientCreateOrderHandler(c *gin.Context) {
 		for _, itemRequest := range orderRequest.OrderItems {
 			var menuItem models.MenuItem
 			if err := tx.First(&menuItem, itemRequest.MenuItemID).Error; err != nil {
-				c.String(http.StatusBadRequest, "Invalid MenuItem ID: "+strconv.Itoa(itemRequest.MenuItemID))
+				c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid MenuItem ID: "})
 				return err
 			}
 
 			if !menuItem.Available {
-				c.String(http.StatusBadRequest, "MenuItem not available: "+menuItem.Name)
+				c.JSON(http.StatusBadRequest, gin.H{"message": "MenuItem not available: "})
 				return nil
 			}
 
@@ -322,7 +322,7 @@ func ClientCreateOrderHandler(c *gin.Context) {
 			Notes:       orderRequest.Notes,
 		}
 		if createResult := tx.Create(&order); createResult.Error != nil {
-			c.String(http.StatusInternalServerError, "Failed to create order: "+createResult.Error.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create order: "})
 			return createResult.Error
 		}
 		return nil
@@ -337,35 +337,35 @@ func ClientGetOrdersHandler(c *gin.Context) {
 	clientPassword := c.Query("client_password")
 
 	if clientPassword == "" {
-		c.String(http.StatusBadRequest, "Client Password is required")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Client Password is required"})
 		return
 	}
 
 	db := middlewares.GetDBFromContext(c)
 	if db == nil {
-		c.String(http.StatusInternalServerError, "Database connection not available")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database connection not available"})
 		return
 	}
 
 	var client models.Client
 	if err := db.Where("passcode=?", clientPassword).First(&client).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.String(http.StatusBadRequest, "Invalid Request")
+			c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid Request"})
 		} else {
-			c.String(http.StatusInternalServerError, "Database error checking Client: "+err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error checking Client: "})
 		}
 		return
 	}
 
 	if client.Passcode != clientPassword {
-		c.String(http.StatusUnauthorized, "Invalid Client Password")
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid Client Password"})
 		return
 	}
 	log.Printf("fetching orders for client ID: %d", client.ID)
 	var orders []models.Order
-	result := db.Where("client_id = ?", client.ID).Find(&orders)
+	result := db.Preload("Client").Preload("OrderItems").Where("client_id = ?", client.ID).Find(&orders)
 	if result.Error != nil {
-		c.String(http.StatusInternalServerError, "Database error fetching orders: "+result.Error.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Database error fetching orders: "})
 		return
 	}
 
